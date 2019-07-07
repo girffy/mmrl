@@ -11,18 +11,19 @@ makes sure the replays are consistent with it.
 
 ## Dependencies
 * python3, with packages:
-  * pychallonge
-  * py-slippi
-  * swiglpk
-  * pandas
-  * scipy
-  * pickle
+    * pychallonge
+    * py-slippi
+    * swiglpk
+    * pandas
+    * scipy
+    * pickle
 * libglpk-dev
 
 ## Running the Workflow
 `mmrl.py` is the file that runs each part of the work flow. It must be given a
 directory to write its files to, and takes some optional flags to tell it which
 tasks to do:
+
 * `-c tournament_id` fetches challonge bracket data. `tournament_id` must be
   usable by [tournaments/index](https://api.challonge.com/v1/documents/tournaments/show),
   and is usually of the form `account_name-tournament_name`. This option can be
