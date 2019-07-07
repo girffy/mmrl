@@ -11,12 +11,12 @@ makes sure the replays are consistent with it.
 
 ## Dependencies
 * python3, with packages:
-    * pychallonge
-    * py-slippi
-    * swiglpk
-    * pandas
-    * scipy
-    * pickle
+	* pychallonge
+	* py-slippi
+	* swiglpk
+	* pandas
+	* scipy
+	* pickle
 * libglpk-dev
 
 ## Running the Workflow
