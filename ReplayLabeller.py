@@ -63,7 +63,11 @@ class ReplayLabeller:
     if start_l == 0 or end_l == 0:
       return -INF
 
-    time_ll = math.log(start_l) + math.log(end_l)
+    start_ll = max(config.MIN_START_LL, math.log(start_l))
+    end_ll = max(config.MIN_END_LL, math.log(end_l))
+
+
+    time_ll = start_ll + end_ll
 
     return time_ll
 
@@ -150,7 +154,7 @@ class ReplayLabeller:
   # triple (ll, si, ri), where ll is the log-likelihood of the label and si, ri
   # are the setup and game indices, respectively
   def compute_all_labels(self):
-    unseen_sis = set(range(len(self.setups)))
+    label_counts = {si:0 for si in range(len(self.setups))}
     all_labels = [[] for match in self.matches]
     for mi, match in enumerate(self.matches):
       ngames = match['num_games']
@@ -168,12 +172,12 @@ class ReplayLabeller:
 
           if total_ll >= config.NOLABEL_OBJVAL:
             all_labels[mi].append(( total_ll, si, ri ))
-            unseen_sis -= {si}
+            label_counts[si] += 1
       all_labels[mi].sort(reverse=True)
 
-    for si in unseen_sis:
-      print("WARNING: Setup '%s' has %s replays but none were feasible labels" %
-        (self.setups[si]['drive'], len(self.setups[si]['replays'])))
+    for si in range(len(self.setups)):
+      print("Setup '%s': has %s replays -> %s labels" %
+        (self.setups[si]['drive'], len(self.setups[si]['replays']), label_counts[si]))
 
     return all_labels
 

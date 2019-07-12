@@ -1,6 +1,6 @@
 # the challonge user and API key to use with the challonge API
 CHALLONGE_USER = None
-CHALLONGE_API_KEY =  None
+CHALLONGE_API_KEY = None
 
 
 # the parameters for the gaussian distributions of how time differences (in
@@ -11,6 +11,17 @@ ANNOUNCE_TO_START_MEAN = 60.0
 ANNOUNCE_TO_START_SD = 180.0
 END_TO_REPORT_MEAN = 30.0
 END_TO_REPORT_SD = 180.0
+
+# have a lower bound for timestamp log-likelihoods (which currently corresponds
+# to about 10 minutes off), based on the idea that if it's off by more than 10
+# minutes, it was just recorded incorrectly and it doesn't really matter
+# exactly how far off it is
+# TODO: how mathematically valid is this? effectively
+# these are now "distributions" whose integral is infinity instead of 1
+# TODO: it probably makes more sense for these parameters to be max time
+# offsets, rather than LL lower bounds
+MIN_START_LL = -11.0
+MIN_END_LL = -11.0
 
 # it is assumed that the first game never starts before the challonge start
 # time, and the last game never ends before the challonge end time; however
@@ -41,11 +52,16 @@ SEC_CHAR_PROB = 0.1
 # py-slippi doesn't pick it up; could maybe fix this by switching to the js
 # slippi parser
 DRIVE_TIME_OFFSETS = {
+  'Drive #1' : 60,
   'Drive #2' : 60,
-  'Drive #3' : 2592093,
+  'Drive #3' : 60,
+  'Drive #4' : 60,
   'Drive #5' : 60,
+  'Drive #6' : 60,
   'Drive #7' : 60,
-  'Drive #8' : 60, # lol
+  'Drive #8' : 60,
+  'Drive #9' : 60,
+  'Drive #10' : 60,
 }
 
 # the time zone of the replays; slippi replay timestamps are assumed to be in
