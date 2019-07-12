@@ -90,6 +90,11 @@ def fetch_brackets_to_file(challonge_ids, outfile):
 
     # add some metadata to each challonge match
     for match in matches:
+      if match['completed-at'] == None:
+        print("WARNING: match %s hasn't been completed; omitting it" % match['id'])
+        match['num_games'] = 0
+        continue
+
       # TODO: could do some smarter parsing here but oh well, DQ's can be
       # ignored anyway
       if len(match['scores-csv'].split('-')) > 2:
@@ -165,29 +170,24 @@ def parse_slp_file(slp_file, drive):
 
   return dct
 
-# given a directory (which should be have a name of the form 'Drive #N'), parse
-# all the replays in it and order them by start time
+# given a directory and a subdirectory of it, all the replays in the
+# subdirectory and order them by start time
 # TODO: it takes quite a while to parse slippi replays; might be better if we
 # can parallelize this
-def parse_slp_drive(drive_dir):
+def parse_slp_drive(all_drives_dir, setup_dir):
+  drive_dir = os.path.join(all_drives_dir, setup_dir)
   print("Parsing replays from directory: %s" % drive_dir)
   replays = []
 
-  # attempt to infer drive name from directory name
-  result = re.search('Drive #(\d+)', drive_dir)
-  if not result:
-    raise Exception("Could not infer drive name from directory: %s" % drive_dir)
-  drive = result[0]
-
   for fname in os.listdir(drive_dir):
     slp_file = os.path.join(drive_dir, fname)
-    replay = parse_slp_file(slp_file, drive)
+    replay = parse_slp_file(slp_file, drive_dir)
     if replay != None:
       replays.append(replay)
   replays.sort(key = lambda r: r['start_time'])
 
   setup = {
-    'drive' : drive,
+    'drive' : setup_dir,
     'replays' : replays,
   }
 
@@ -195,9 +195,9 @@ def parse_slp_drive(drive_dir):
 
 # given a directory containing all the drive replay directories, parse each of
 # the directories, and write the list of setups to setup_file
-def parse_all_slp_drives(drives_dir, setup_file):
-  setups = [parse_slp_drive(os.path.join(drives_dir, setup_dir))
-            for setup_dir in os.listdir(drives_dir)]
+def parse_all_slp_drives(all_drives_dir, setup_file):
+  setups = [parse_slp_drive(all_drives_dir, setup_dir)
+            for setup_dir in os.listdir(all_drives_dir)]
 
   with open(setup_file, 'wb') as fp:
     #json.dump(setups, fp, indent=2, sort_keys=True, default=str)
