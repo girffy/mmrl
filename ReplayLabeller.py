@@ -182,8 +182,11 @@ class ReplayLabeller:
     return all_labels
 
   # given the list of matches, and output from ReplayLabeller.compute_all_labels,
-  # construct a glpk MIP instance for the problem and solve it
-  def mip_solve(self, all_labels):
+  # construct a glpk MIP instance for the problem and solve it. forced_labels
+  # is a set containing triples (mi, si, ri) indicating that mi must be
+  # labelled with (si, ri), and/or pairs (mi, None) indicating mi must be left
+  # unlabelled.
+  def mip_solve(self, all_labels, forced_labels = set()):
     replays = list({(si, ri) for lbls in all_labels for _, si, ri in lbls})
 
     N = sum([len(lbls) for lbls in all_labels]) + len(self.matches) # number of variables
@@ -216,13 +219,19 @@ class ReplayLabeller:
       for ll, si, ri in lbls:
         lvars[mi, si, ri] = var_idx
         glp_set_col_name(mip, var_idx, "M%s_s%sr%s" % (mi, si, ri))
-        glp_set_col_bnds(mip, var_idx, GLP_DB, 0.0, 1.0)
+        if (mi, si, ri) in forced_labels:
+          glp_set_col_bnds(mip, var_idx, GLP_FX, 1.0, 1.0)
+        else:
+          glp_set_col_bnds(mip, var_idx, GLP_DB, 0.0, 1.0)
         glp_set_obj_coef(mip, var_idx, ll)
         glp_set_col_kind(mip, var_idx, GLP_IV)
         var_idx += 1
     for mi in range(len(self.matches)):
       glp_set_col_name(mip, var_idx, "M%s_unlabelled" % mi)
-      glp_set_col_bnds(mip, var_idx, GLP_DB, 0.0, 1.0)
+      if (mi, None) in forced_labels:
+        glp_set_col_bnds(mip, var_idx, GLP_FX, 1.0, 1.0)
+      else:
+        glp_set_col_bnds(mip, var_idx, GLP_DB, 0.0, 1.0)
       glp_set_obj_coef(mip, var_idx, config.NOLABEL_OBJVAL)
       var_idx += 1
 
@@ -275,6 +284,41 @@ class ReplayLabeller:
       if val == 1:
         soln[mi] = llmap[mi,si,ri], si, ri
 
+    objval = glp_mip_obj_val(mip)
     print("MIP solved; objval=%.2f, labelled %s/%s matches" %
-      (glp_mip_obj_val(mip), len([s for s in soln if s != None]), len(self.matches)))
+      (objval, len([s for s in soln if s != None]), len(self.matches)))
+    return objval, soln
+
+  # for a given match, find the log-likelihood of the best solution for each of
+  # its labels, and use this to estimate the probability of each label. If
+  # include_nolabel is true-ish, then the option of providing no label is also
+  # included. Omit results with probability less than threshold
+  def get_indiv_rankings(self, all_labels, mi, include_nolabel=True, normalize=True, threshold=0.0):
+    labels = []
+    for _, si, ri in all_labels[mi]:
+      objval, soln = self.mip_solve(all_labels, forced_labels = {(mi, si, ri)})
+      labels.append([objval, si, ri])
+
+    if include_nolabel:
+      ul_objval, ul_soln = self.mip_solve(all_labels, forced_labels = {(mi, None)})
+      labels.append([ul_objval, None, None])
+
+    if normalize:
+      # compute the relative probability of each solution
+      mean = sum([lbl[0] for lbl in labels]) * 1.0 / len(labels)
+      for lbl in labels:
+        lbl[0] = math.exp(lbl[0] - mean)
+      total_l = sum([lbl[0] for lbl in labels])
+      for lbl in labels:
+        lbl[0] /= total_l
+      labels.sort(reverse=True)
+
+    return [lbl for lbl in labels if lbl[0] >= threshold]
+
+  # given the likelihoods of each label, estimate the *probability* of each
+  # label. Does this at the match level by comparing the likelihoods of each
+  # feasible label (including having no label at all) for this match.
+  def get_all_labels_probs(self, all_labels, include_nolabel=True, normalize=True, threshold=0.0):
+    soln = [self.get_indiv_rankings(all_labels, mi, include_nolabel, normalize, threshold)
+            for mi in range(len(self.matches))]
     return soln

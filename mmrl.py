@@ -41,6 +41,7 @@ if __name__ == '__main__':
   slippi_file = os.path.join(args.output_dir, config.SLIPPI_FILE)
   full_output_file = os.path.join(args.output_dir, config.FULL_OUTPUT_FILE)
   single_output_file = os.path.join(args.output_dir, config.SINGLE_OUTPUT_FILE)
+  prob_output_file = os.path.join(args.output_dir, config.PROB_OUTPUT_FILE)
 
   if args.c != None:
     print("Fetching challonge brackets: %s" % (', '.join(args.c)))
@@ -55,7 +56,8 @@ if __name__ == '__main__':
 
     print("Computing labels for %s matches..." % len(replayLabeller.matches))
     all_labels = replayLabeller.compute_all_labels()
-    single_labels = replayLabeller.mip_solve(all_labels)
+    sl_objval, single_labels = replayLabeller.mip_solve(all_labels)
+    probs_labels = replayLabeller.get_all_labels_probs(all_labels, threshold=0.05)
 
     matches = replayLabeller.matches
     setups = replayLabeller.setups
@@ -72,10 +74,11 @@ if __name__ == '__main__':
          display_time(match['started-at']),
          display_time(match['completed-at'])))
 
-    def print_label(fp, ll, si, ri, ngames, prob=None):
+    def print_label(fp, ll, si, ri, ngames, prob=None, format_pct = False):
+      llstr = ('%.2f%%' % (ll*100)) if format_pct else ('%.3f' % ll)
       probstr = '' if prob == None else (' (%.2f%%)' % (prob*100))
-      fp.write("    %.3f%s: s%s %s Games %s-%s:  %s to %s\n" %
-        (ll, probstr, si, setups[si]['drive'], ri, ri+ngames-1,
+      fp.write("    %s%s: s%s %s Games %s-%s:  %s to %s\n" %
+        (llstr, probstr, si, setups[si]['drive'], ri, ri+ngames-1,
          display_time(setups[si]['replays'][ri]['start_time']),
          display_time(setups[si]['replays'][ri+ngames-1]['end_time'])))
 
@@ -91,11 +94,9 @@ if __name__ == '__main__':
     # format given e.g. by compute_greedy_labels and analyze_LP_soln. Returns
     # the average match ll of the solution and the number of missed matches.
     def print_single_soln(fp, soln):
-      objval = 0
       missed_mis = {mi for mi, lbl in enumerate(soln) if lbl == None}
       labels = {(mi,lbl) for mi, lbl in enumerate(soln) if lbl != None}
       for mi, (ll, si, ri) in sorted(labels, key = lambda x: x[1], reverse=True):
-        objval += ll
         print_match(fp, mi, matches[mi])
         print_label(fp, ll, si, ri, matches[mi]['num_games'])
         for k in range(matches[mi]['num_games']):
@@ -104,23 +105,35 @@ if __name__ == '__main__':
 
       fp.write("\nMissed %s matches:\n" % len(missed_mis))
       for mi in missed_mis:
-        objval += config.NOLABEL_OBJVAL
         print_match(fp, mi, matches[mi])
 
-      return (objval*1.0 / len(soln)), len(missed_mis)
+    # displays a solution with zero or more solutions for each match, in the
+    # format of all_labels
+    def print_full_soln(fp, soln, format_pct = False, sort_score = False):
+      mims = list(enumerate(matches))
+      if sort_score:
+        mims.sort(key = lambda x: soln[x[0]][0], reverse=True)
+      for mi, match in mims:
+        print_match(fp, mi, match)
+        for ll, si, ri in soln[mi]:
+          if si != None:
+            print_label(fp, ll, si, ri, match['num_games'], format_pct = format_pct)
+            for k in range(match['num_games']):
+              print_replay(fp, setups[si]['replays'][ri+k])
+          else:
+            fp.write("    %.2f%%: NO LABEL\n" % (ll*100))
+        fp.write("\n")
 
     with open(full_output_file, 'w') as fp:
-      for mi, match in enumerate(matches):
-        print_match(fp, mi, match)
-        for ll, si, ri in all_labels[mi]:
-          print_label(fp, ll, si, ri, match['num_games'])
-          for k in range(match['num_games']):
-            print_replay(fp, setups[si]['replays'][ri+k])
+      print_full_soln(fp, all_labels)
 
     with open(single_output_file, 'w') as fp:
       print_single_soln(fp, single_labels)
 
     print("Wrote label output to %s and %s" % (full_output_file, single_output_file))
+
+    with open(prob_output_file, 'w') as fp:
+      print_full_soln(fp, probs_labels, format_pct = True, sort_score = True)
 
   else:
     usage()

@@ -80,3 +80,4 @@ CHALLONGE_FILE = 'challonge_data.p' # file containing bracket match data
 SLIPPI_FILE = 'slippi_data.p' # file containing parsed replay data
 FULL_OUTPUT_FILE = 'full_output.txt' # file containing all feasible label scores
 SINGLE_OUTPUT_FILE = 'single_output.txt' # file containing LP solution output
+PROB_OUTPUT_FILE = 'prob_output.txt' # file containing all feasible label probabilities
