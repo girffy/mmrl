@@ -56,7 +56,7 @@ variable x_\{m,r'\} = 1, such that if match m starts with replay r', then it inc
 a match m, and for a replay r and integer k >= 0, let r-k be the replay occuring k before r on the same setup. Then, the MILP formulation is:
 
 ```
-  max sum_\{m in M\} \sum_\{r in R\} l(m,r)
+  max sum_\{m in M\} \sum_\{r in R\} log(L(m,r))
 so that sum_\{r in R\} x_\{m,r\} = 1                                 for all m in M
         sum_\{m in M\} \sum_\{k=0\}^\{len(m)-1\} x_\{m,r-k\} <= 1    for all r in R
         x_\{m,r\} >= 0                                               for all m in M, r in R
