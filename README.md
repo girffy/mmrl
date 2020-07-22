@@ -1,6 +1,8 @@
 ## mmrl
 mmrl (MLE/MILP Replay Labeller) is a tool for automatically identifying ssbm replays for tournament matches. It reads a bracket from challonge, and a set of slippi replays from various setups, and attempts to identify the replays of each bracket match.  It primarily goes off of timestamps; it is assumed that game 1 of a match will start shortly after the match is called by the TO (and started in challonge), and the match is reported to challonge shortly after the last game ends. A .csv containing the mains/secondaries of (some of) the players is also optionally used. The workflow also looks at the set count and makes sure the replays are consistent with it.
 
+A website that uses this program to generate replay labels for the Google MTV melee community can be found at http://csclub.uwaterloo.ca/~b2coutts/mtv_replays.
+
 ## Dependencies
 * python3, with packages:
 	* pychallonge
@@ -27,6 +29,7 @@ The code uses maximum likelihood estimation (MLE) to find the most likely replay
 * The time between the match starting in challonge and game 1 beginning is normally distributed (with parameters specified in `config.py`)
 * The time between the last game ending and the match being reported in challonge is normally distributed (with parameters specified in `config.py`
 * Both players use the same port throughout the set
+* All games within a set are played on the same setup
 * In each game, each player has probability X of using one of their mains, probability Y of using one of their secondaries, and probability (1-X-Y) of using some other character (X and Y are defined in `config.py`)
 
 Using these assumptions, for any n-game match M, and any set R of n consecutive replays on the same setup, we can estimate the likelihood L(M,R) of M producing the replays R. Subsequently, we can estimate the overall likelihood of a particular assignment of replays to matches by multiplying the individual likelihoods of each assignment.  Then, we can phrase the problem of trying to label these matches as an optimization problem: we are trying to find a maximum likelihood assignment of replays to each match, such that no replay is assigned to more than 1 match. Using the common trick of maximizing log-likelihood instead of likelihood, the problem we're solving is:
@@ -35,10 +38,33 @@ Using these assumptions, for any n-game match M, and any set R of n consecutive 
 
 We also want to have the option of not labelling a match at all, which will carry some fixed penalty. This problem is similar to the well-known assignment problem, with the difference that multiple replays are needed for each match. I suspect this problem is NP-hard, though I haven't been able to prove it.  The problem is solved by formulating it as a mixed integer linear program (MILP), and solving it with GLPK.
 
+## Modelling as a MILP
+
+The MILP is explicitly constructed in the `mip_solve` function in `ReplayLabeller.py`; this section describes at a high-level how the problem is modelled as a
+MILP. Let M be the set of matches, and let R be the set of replays. For each m in M and r in R, we will have a binary variable x_\{m,r\}; if this variable is 1,
+it indicates that r is the first of the replays assigned to the match m. One difference in the code is that we only introduce the variables which represent
+feasible assignments, and we also include a "dummy" label for each m, indicating that no replays were found for m, which carries a configurable constant
+log-likelihood (NOLABEL_OBJVAL, default -25.0). As outlined above, we wish to maximize the log-likelihood log(L(m,r)) of these assignments. We'll need two sets
+of constraints; the match-level constraints and the replay-level constraints.
+
+The match-level constraints are that, for each match m in M, exactly one replay (or the dummy label, indicating no replay) is assigned to it. Note that a replay
+r being assigned to m, indicates that r is the first of m's replays.
+
+The replay-level constraints are that, for each replay r in R, r is not attributed to more than 1 match (noting that r may be attributed to a match either by
+appearing in a x_\{m,r\} variable, or by having a preceding replay appear in a variable). Equivalently, for every replay r, we want there to be at most one
+variable x_\{m,r'\} = 1, such that if match m starts with replay r', then it includes replay r. For notational brevity, let len(m) denote the number of games in
+a match m, and for a replay r and integer k >= 0, let r-k be the replay occuring k before r on the same setup. Then, the MILP formulation is:
+
+  max sum_\{m in M\} \sum_\{r in R\} l(m,r)
+so that sum_\{r in R\} x_\{m,r\} = 1                                 for all m in M
+        sum_\{m in M\} \sum_\{k=0\}^\{len(m)-1\} x_\{m,r-k\} <= 1    for all r in R
+        x_\{m,r\} >= 0                                               for all m in M, r in R
+
+An optimal solution to this MILP represents an optimal assignment of our matches to replays.
+
 
 ## Open Questions
 * Is the optimization problem really NP-hard?
-* In all the examples I've seen, the LP relaxation of the optimization problem always produces an integral solution. The problem doesn't satisfy the obvious properies for being integral; is it just a coincidence, or is the problem actually integral?
 * How scalable is this approach? MILPs are very hard to solve, and may not be tractable for larger tournaments
 * Is there a good way of accounting for an X% chance of a match not having an associated replay (due to a setup malfunctioning, the timings not being recorded properly in challonge, etc)?
 * Is there a tractable way to compute the **probability** of a particular match's labelled replays being the true replays? In principle, for an assignment of M to R, we want to compute the total likelihood of all solutions that assign M to R, divided by the total likelihood of all solutions, but I don't know if there's a computationally feasible way to do this
