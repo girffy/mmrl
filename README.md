@@ -55,10 +55,12 @@ appearing in a x_\{m,r\} variable, or by having a preceding replay appear in a v
 variable x_\{m,r'\} = 1, such that if match m starts with replay r', then it includes replay r. For notational brevity, let len(m) denote the number of games in
 a match m, and for a replay r and integer k >= 0, let r-k be the replay occuring k before r on the same setup. Then, the MILP formulation is:
 
+```
   max sum_\{m in M\} \sum_\{r in R\} l(m,r)
 so that sum_\{r in R\} x_\{m,r\} = 1                                 for all m in M
         sum_\{m in M\} \sum_\{k=0\}^\{len(m)-1\} x_\{m,r-k\} <= 1    for all r in R
         x_\{m,r\} >= 0                                               for all m in M, r in R
+```
 
 An optimal solution to this MILP represents an optimal assignment of our matches to replays.
 
